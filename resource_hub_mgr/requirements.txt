@@ -1,0 +1,4 @@
+# Add Python dependencies for this skill here.
+# They will be installed into resource_hub_mgr/.venv by scripts/run_python.sh.
+openai>=1,<2
+volcengine-python-sdk[ark]

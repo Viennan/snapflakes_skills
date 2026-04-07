@@ -1,0 +1,4 @@
+interface:
+  display_name: "Resource Hub Manager"
+  short_description: "Manage resource hubs, metadata, and media lookup"
+  default_prompt: "Use $resource-hub-mgr to initialize or repair a resource hub, import or remove assets, update config, or find matching media."
