@@ -83,13 +83,14 @@ resource_hub_root/
     "description_language": "en",
     "content_sense": {
         "open_ai_base_url": "https://example.invalid/v1",
-        "open_ai_api_key_env": "OPENAI_API_KEY",
+        "open_ai_api_key_env": "OPENAI_COMPATIBLE_API_KEY",
         "model": "gpt-4.1-mini",
         "cache_time_hours": 144,
         "video_understanding_mode": "frames"
     },
     "text_vectorization": {
-        "api_key_env": "ARK_API_KEY",
+        "api_key_env": "ARK_COMPATIBLE_API_KEY",
+        "base_url": "https://ark.cn-beijing.volces.com/api/v3",
         "model": "doubao-embedding-vision-251215",
         "dimensions": 1024
     },
@@ -128,6 +129,7 @@ resource_hub_root/
 - `video.transcoders` 与 `image.transcoders` 缺省时等价于空列表。
 - `video.with_description` 与 `image.with_description` 缺省时表示该资源类型关闭语义感知。
 - `content_sense.cache_time_hours` 为可选字段，单位为小时，缺省值为 `144`。
+- `text_vectorization.base_url` 为可选字段，缺省值为 `https://ark.cn-beijing.volces.com/api/v3`。
 - `text_vectorization.dimensions` 为可选字段，缺省值为 `1024`。
 
 ### 2. `videos/index.json`
@@ -183,6 +185,7 @@ resource_hub_root/
             },
             "text_vector": {
                 "provider": "volcengine_ark",
+                "base_url": "https://ark.cn-beijing.volces.com/api/v3",
                 "model": "doubao-embedding-vision-251215",
                 "dimensions": 1024,
                 "encoding": "base64-f32le",
@@ -249,6 +252,7 @@ resource_hub_root/
             },
             "text_vector": {
                 "provider": "volcengine_ark",
+                "base_url": "https://ark.cn-beijing.volces.com/api/v3",
                 "model": "doubao-embedding-vision-251215",
                 "dimensions": 1024,
                 "encoding": "base64-f32le",
@@ -451,16 +455,18 @@ def determine_resolution(x: int, y: int) -> str:
 
 ```jsonc
 {
-    "api_key_env": "ARK_API_KEY",
+    "api_key_env": "ARK_COMPATIBLE_API_KEY",
+    "base_url": "https://ark.cn-beijing.volces.com/api/v3",
     "model": "doubao-embedding-vision-251215",
     "dimensions": 1024
 }
 ```
 
 - `text_vectorization` 使用独立配置，不复用 `content_sense`。
-- 当前实现固定使用火山方舟多模态向量模型 `doubao-embedding-vision-251215`。
 - 当前实现必须使用火山方舟官方 SDK 调用，不得通过 OpenAI SDK 调用该向量模型。
 - `api_key_env` 的值是环境变量名，而不是实际 API Key。
+- `base_url` 为可选字段，用于指定目标 Ark/Ark-compatible 向量服务端点；缺省值为 `https://ark.cn-beijing.volces.com/api/v3`。
+- `model` 为可选字段，用于指定目标文本向量化模型；缺省值为 `doubao-embedding-vision-251215`。
 - `dimensions` 为稠密向量维度，缺省值为 `1024`。
 - 当前仓库场景属于“文本 Query 检索文本 Corpus”的召回/排序任务：
   - Query 侧 `instructions` 必须使用 `Target_modality: text.\nInstruction:{}\nQuery:` 模板。
@@ -468,4 +474,4 @@ def determine_resolution(x: int, y: int) -> str:
 - 进行资源搜索时，不得先以词法评分筛掉资源再做向量匹配。
   - 若存在硬过滤条件，则候选集应先由硬过滤得到，再对候选集分别计算词法评分与向量相似度。
   - 若不存在硬过滤条件，则应对全量资源分别计算词法评分与向量相似度。
-- 当 `description`、向量模型、向量维度或向量化 `instructions` 变化时，应重新生成对应资源的 `text_vector`。
+- 当 `description`、向量服务 `base_url`、向量模型、向量维度或向量化 `instructions` 变化时，应重新生成对应资源的 `text_vector`。

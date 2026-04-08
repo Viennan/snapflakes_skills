@@ -27,6 +27,7 @@ STANDARD_MIN_WH = {
 }
 ASCII_TOKEN_RE = re.compile(r"[a-z0-9]+")
 CJK_SEQUENCE_RE = re.compile(r"[\u4e00-\u9fff]+")
+ASCII_ALPHA_RE = re.compile(r"[a-z]")
 NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
 FORMAT_NORMALIZATION = {
     "jpeg": "jpg",
@@ -44,6 +45,8 @@ IMAGE_EXTENSIONS = {
 }
 DEFAULT_CONTENT_SENSE_CACHE_TIME_HOURS = 144
 DEFAULT_DESCRIPTION_LANGUAGE = "en"
+MAX_CONTENT_SENSE_DESCRIPTION_CHARS = 499
+MAX_AUTO_RESOURCE_NAME_CHARS = 19
 DESCRIPTION_LANGUAGE_LABELS = {
     "en": "English",
     "zh-CN": "Simplified Chinese",
@@ -110,6 +113,19 @@ def ascii_tokens(text: str) -> set[str]:
     return set(ASCII_TOKEN_RE.findall(normalize_text(text)))
 
 
+def is_informative_ascii_token(token: str) -> bool:
+    normalized = normalize_text(str(token))
+    if not normalized or ASCII_TOKEN_RE.fullmatch(normalized) is None:
+        return False
+    if any(char.isdigit() for char in normalized):
+        return True
+    return len(normalized) >= 3
+
+
+def informative_ascii_tokens(text: str) -> set[str]:
+    return {token for token in ascii_tokens(text) if is_informative_ascii_token(token)}
+
+
 def cjk_sequences(text: str) -> set[str]:
     return set(CJK_SEQUENCE_RE.findall(normalize_text(text)))
 
@@ -130,9 +146,18 @@ def query_features(text: str) -> dict[str, Any]:
     return {
         "normalized": normalized,
         "ascii_tokens": ascii_tokens(normalized),
+        "informative_ascii_tokens": informative_ascii_tokens(normalized),
         "cjk_sequences": cjk_sequences(normalized),
         "cjk_ngrams": cjk_ngrams(normalized),
     }
+
+
+def contains_cjk(text: str) -> bool:
+    return bool(CJK_SEQUENCE_RE.search(normalize_text(text)))
+
+
+def contains_ascii_alpha(text: str) -> bool:
+    return bool(ASCII_ALPHA_RE.search(normalize_text(text)))
 
 
 def config_path_from_hub(hub_root: Path) -> Path:
@@ -192,22 +217,51 @@ def slugify_resource_name(text: str) -> str:
     return collapsed
 
 
+def _truncate_slug_to_length(slug: str, max_chars: int) -> str:
+    candidate = slug.strip("-")
+    if len(candidate) <= max_chars:
+        return candidate
+    return candidate[:max_chars].rstrip("-")
+
+
+def normalize_content_sense_description(text: Any, max_chars: int = MAX_CONTENT_SENSE_DESCRIPTION_CHARS) -> str:
+    normalized = " ".join(str(text or "").strip().split())
+    if len(normalized) <= max_chars:
+        return normalized
+    truncated = normalized[:max_chars].rstrip()
+    if " " in truncated:
+        candidate = truncated.rsplit(" ", 1)[0].rstrip()
+        if candidate:
+            return candidate
+    return truncated
+
+
 def make_auto_name_candidate(preferred_text: str, fallback: str = "resource") -> str:
-    slug = slugify_resource_name(preferred_text)
+    slug = _truncate_slug_to_length(slugify_resource_name(preferred_text), MAX_AUTO_RESOURCE_NAME_CHARS)
     if slug:
         return slug
     if is_valid_resource_name(preferred_text):
-        return preferred_text.strip()
-    return fallback
+        trimmed = _truncate_slug_to_length(str(preferred_text).strip().lower(), MAX_AUTO_RESOURCE_NAME_CHARS)
+        if trimmed:
+            return trimmed
+    fallback_slug = _truncate_slug_to_length(slugify_resource_name(fallback), MAX_AUTO_RESOURCE_NAME_CHARS)
+    if fallback_slug:
+        return fallback_slug
+    return "resource"[:MAX_AUTO_RESOURCE_NAME_CHARS]
 
 
 def ensure_unique_resource_name(type_dir: Path, candidate: str) -> tuple[str, bool]:
     if not (type_dir / candidate).exists():
         return candidate, False
     suffix = 2
-    while (type_dir / f"{candidate}-{suffix}").exists():
+    while True:
+        suffix_text = str(suffix)
+        stem_limit = max(MAX_AUTO_RESOURCE_NAME_CHARS - len(suffix_text), 1)
+        stem = _truncate_slug_to_length(candidate, stem_limit)
+        final_name = f"{stem}{suffix_text}"
+        if final_name and not (type_dir / final_name).exists():
+            return final_name, True
         suffix += 1
-    return f"{candidate}-{suffix}", True
 
 
 def run_command(args: list[str], *, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:

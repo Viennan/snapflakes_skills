@@ -12,6 +12,7 @@ from common import (
     DEFAULT_CONTENT_SENSE_CACHE_TIME_HOURS,
     DEFAULT_DESCRIPTION_LANGUAGE,
     HubError,
+    MAX_CONTENT_SENSE_DESCRIPTION_CHARS,
     RESOLUTIONS,
     RESOURCE_DIRS,
     config_path_from_hub,
@@ -209,7 +210,7 @@ def validate_content_sense_cache(
         if not isinstance(purpose, str) or not purpose.strip():
             add_error(errors, f"{resource_dir} content_sense_cache.uploads[{index}].purpose must be a non-empty string")
         input_type = upload.get("input_type")
-        if input_type not in {"input_image", "input_file"}:
+        if input_type not in {"input_image", "input_video"}:
             add_error(errors, f"{resource_dir} content_sense_cache.uploads[{index}].input_type is invalid")
         uploaded_at = upload.get("uploaded_at")
         if not isinstance(uploaded_at, str) or not uploaded_at.strip():
@@ -244,6 +245,10 @@ def validate_text_vector(
     provider = text_vector.get("provider")
     if provider != TEXT_VECTORIZATION_PROVIDER:
         add_error(errors, f"{resource_dir} text_vector.provider must be {TEXT_VECTORIZATION_PROVIDER}")
+
+    base_url = text_vector.get("base_url")
+    if not isinstance(base_url, str) or not base_url.strip():
+        add_error(errors, f"{resource_dir} text_vector.base_url must be a non-empty string")
 
     model = text_vector.get("model")
     if not isinstance(model, str) or not model.strip():
@@ -292,6 +297,8 @@ def validate_text_vector(
             add_error(errors, f"{resource_dir} text_vector.embedding is invalid: {exc}")
 
     if text_vector_config is not None:
+        if base_url != text_vector_config.get("base_url"):
+            add_warning(warnings, f"{resource_dir} text_vector.base_url does not match config; run repair_hub.py")
         if model != text_vector_config.get("model"):
             add_warning(warnings, f"{resource_dir} text_vector.model does not match config; run repair_hub.py")
         if dimensions is not None and dimensions != text_vector_config.get("dimensions"):
@@ -391,6 +398,11 @@ def validate_resource_entry(
         description = ""
     elif with_description_enabled and not description.strip():
         add_error(errors, f"{resource_dir} index entry description must be non-empty when with_description is enabled")
+    elif len(description) > MAX_CONTENT_SENSE_DESCRIPTION_CHARS:
+        add_error(
+            errors,
+            f"{resource_dir} index entry description must contain at most {MAX_CONTENT_SENSE_DESCRIPTION_CHARS} characters",
+        )
 
     validate_text_vector(
         resource_dir,

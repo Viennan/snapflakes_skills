@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-import os
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -11,22 +11,23 @@ from common import (
     DEFAULT_CONTENT_SENSE_CACHE_TIME_HOURS,
     DEFAULT_DESCRIPTION_LANGUAGE,
     HubError,
+    MAX_AUTO_RESOURCE_NAME_CHARS,
+    MAX_CONTENT_SENSE_DESCRIPTION_CHARS,
     description_language_label,
     make_auto_name_candidate,
+    normalize_content_sense_description,
     normalize_description_language,
 )
+from llm_clients import get_openai_client
 from media_ops import extract_video_frames, probe_media
+
+FILE_PROCESSING_POLL_INTERVAL_SECONDS = 1.0
+FILE_PROCESSING_MAX_WAIT_SECONDS = 300.0
+FILE_READY_STATUSES = {"active", "processed"}
+FILE_TERMINAL_ERROR_STATUSES = {"deleted", "error", "failed"}
 
 
 def _load_client(config: dict[str, Any]):
-    try:
-        from openai import OpenAI
-    except ImportError as exc:  # pragma: no cover - import failure depends on environment
-        raise HubError(
-            "The openai package is required for content sensing. "
-            "Install dependencies via scripts/run_python.sh."
-        ) from exc
-
     content_sense = config.get("content_sense")
     if not isinstance(content_sense, dict):
         raise HubError("content_sense config is required for content sensing")
@@ -34,9 +35,6 @@ def _load_client(config: dict[str, Any]):
     api_key_env = content_sense.get("open_ai_api_key_env")
     if not isinstance(api_key_env, str) or not api_key_env.strip():
         raise HubError("content_sense.open_ai_api_key_env must be a non-empty string")
-    api_key = os.environ.get(api_key_env)
-    if not api_key:
-        raise HubError(f"Environment variable {api_key_env} is not set")
 
     base_url = content_sense.get("open_ai_base_url")
     if not isinstance(base_url, str) or not base_url.strip():
@@ -54,7 +52,10 @@ def _load_client(config: dict[str, Any]):
     if description_language is None:
         raise HubError("description_language must be one of: en, zh-CN")
 
-    client = OpenAI(api_key=api_key, base_url=base_url)
+    client = get_openai_client(
+        api_key_env=api_key_env.strip(),
+        base_url=base_url.strip(),
+    )
     return client, content_sense, model, float(cache_time_hours), description_language
 
 
@@ -201,7 +202,7 @@ def _cached_uploads_for_request(
     if video_mode == "direct_upload":
         cached_uploads = _normalize_cached_uploads(
             cache_record,
-            expected_input_type="input_file",
+            expected_input_type="input_video",
             cache_time_hours=cache_time_hours,
         )
         if cached_uploads is None or len(cached_uploads) != 1:
@@ -221,6 +222,27 @@ def _cached_uploads_for_request(
     return None
 
 
+def _upload_user_data_file(client: Any, media_path: Path) -> tuple[str, str]:
+    uploaded_at = _to_utc_iso(_utc_now())
+    with media_path.open("rb") as handle:
+        uploaded = client.files.create(file=handle, purpose="user_data")
+    deadline = _utc_now() + timedelta(seconds=FILE_PROCESSING_MAX_WAIT_SECONDS)
+    while True:
+        current = client.files.retrieve(uploaded.id)
+        status = str(getattr(current, "status", "")).strip().lower()
+        if status in FILE_READY_STATUSES:
+            break
+        if status in FILE_TERMINAL_ERROR_STATUSES:
+            raise RuntimeError(f"Uploaded file {uploaded.id} became unusable; current status={status}")
+        if _utc_now() >= deadline:
+            raise RuntimeError(
+                f"Giving up on waiting for file {uploaded.id} to become ready after "
+                f"{FILE_PROCESSING_MAX_WAIT_SECONDS} seconds."
+            )
+        time.sleep(FILE_PROCESSING_POLL_INTERVAL_SECONDS)
+    return str(uploaded.id), uploaded_at
+
+
 def _json_contract_clause(infer_name: bool, description_language: str) -> str:
     name_clause = (
         '"resource_name": a short lowercase ASCII hyphen-case name that can be used as a directory name, '
@@ -232,7 +254,9 @@ def _json_contract_clause(infer_name: bool, description_language: str) -> str:
         "Return only valid JSON with these keys: "
         f"{name_clause} "
         '"description". '
-        f"description must be written in {description_language_label(description_language)} and be concise but informative."
+        f"description must be written in {description_language_label(description_language)}, "
+        f"be concise but informative, and contain fewer than {MAX_CONTENT_SENSE_DESCRIPTION_CHARS + 1} Unicode characters. "
+        f"When resource_name is required, it must contain fewer than {MAX_AUTO_RESOURCE_NAME_CHARS + 1} characters."
     )
 
 
@@ -251,9 +275,15 @@ def _image_prompt_text(infer_name: bool, media_probe: dict[str, Any], descriptio
         if media_probe.get("has_alpha")
         else "The image does not have alpha. Do not claim transparent background."
     )
+    language_guidance = (
+        f"The resource hub is configured with description_language={description_language}. "
+        f"You must write the description strictly in {description_language_label(description_language)}. "
+        "Do not mix languages unless you must quote visible text exactly as shown in the asset."
+    )
     return (
         "You are describing an image asset for a local resource hub. "
         f"{_json_contract_clause(infer_name, description_language)} "
+        f"{language_guidance} "
         f"{_format_common_facts(media_probe)} "
         f"{alpha_guidance} "
         "Focus on the primary subject, composition, scene, color/style, and likely usage context. "
@@ -279,9 +309,15 @@ def _video_prompt_text(
         if video_mode == "frames"
         else "You will receive the video file directly; use the full timeline when describing temporal progression."
     )
+    language_guidance = (
+        f"The resource hub is configured with description_language={description_language}. "
+        f"You must write the description strictly in {description_language_label(description_language)}. "
+        "Do not mix languages unless you must quote visible text exactly as shown in the asset."
+    )
     return (
         "You are describing a video asset for a local resource hub. "
         f"{_json_contract_clause(infer_name, description_language)} "
+        f"{language_guidance} "
         f"{_format_common_facts(media_probe)} "
         f"Additional video facts from ffprobe: duration={duration:.3f}s, fps={fps}. "
         f"{alpha_guidance} "
@@ -326,14 +362,12 @@ def sense_asset(
             if cached_uploads is not None:
                 uploads = cached_uploads
             else:
-                uploaded_at = _to_utc_iso(_utc_now())
-                with media_path.open("rb") as handle:
-                    uploaded = client.files.create(file=handle, purpose="vision")
-                newly_uploaded_file_ids.append(uploaded.id)
+                uploaded_id, uploaded_at = _upload_user_data_file(client, media_path)
+                newly_uploaded_file_ids.append(uploaded_id)
                 uploads = [
                     {
-                        "file_id": uploaded.id,
-                        "purpose": "vision",
+                        "file_id": uploaded_id,
+                        "purpose": "user_data",
                         "input_type": "input_image",
                         "uploaded_at": uploaded_at,
                     }
@@ -363,19 +397,17 @@ def sense_asset(
                 if cached_uploads is not None:
                     uploads = cached_uploads
                 else:
-                    uploaded_at = _to_utc_iso(_utc_now())
-                    with media_path.open("rb") as handle:
-                        uploaded = client.files.create(file=handle, purpose="user_data")
-                    newly_uploaded_file_ids.append(uploaded.id)
+                    uploaded_id, uploaded_at = _upload_user_data_file(client, media_path)
+                    newly_uploaded_file_ids.append(uploaded_id)
                     uploads = [
                         {
-                            "file_id": uploaded.id,
+                            "file_id": uploaded_id,
                             "purpose": "user_data",
-                            "input_type": "input_file",
+                            "input_type": "input_video",
                             "uploaded_at": uploaded_at,
                         }
                     ]
-                content.append({"type": "input_file", "file_id": uploads[0]["file_id"]})
+                content.append({"type": "input_video", "file_id": uploads[0]["file_id"]})
             elif video_mode == "frames":
                 if cached_uploads is not None:
                     uploads = cached_uploads
@@ -386,14 +418,12 @@ def sense_asset(
                     with TemporaryDirectory(prefix="resource-hub-frames-") as temp_dir:
                         frames = extract_video_frames(media_path, Path(temp_dir))
                         for frame, timestamp in frames:
-                            uploaded_at = _to_utc_iso(_utc_now())
-                            with frame.open("rb") as handle:
-                                uploaded = client.files.create(file=handle, purpose="vision")
-                            newly_uploaded_file_ids.append(uploaded.id)
+                            uploaded_id, uploaded_at = _upload_user_data_file(client, frame)
+                            newly_uploaded_file_ids.append(uploaded_id)
                             uploads.append(
                                 {
-                                    "file_id": uploaded.id,
-                                    "purpose": "vision",
+                                    "file_id": uploaded_id,
+                                    "purpose": "user_data",
                                     "input_type": "input_image",
                                     "uploaded_at": uploaded_at,
                                     "frame_time_seconds": float(timestamp),
@@ -434,7 +464,7 @@ def sense_asset(
         "resource_name": make_auto_name_candidate(str(parsed.get("resource_name", "")), fallback="resource")
         if infer_name
         else "",
-        "description": str(parsed.get("description", "")).strip(),
+        "description": normalize_content_sense_description(parsed.get("description", "")),
         "content_sense_cache": {
             **cache_record,
             "uploads": uploads,

@@ -13,6 +13,7 @@ Use this reference when the user wants Codex to operate on a resource hub as a s
 - All Python helpers should run through `scripts/run_python.sh`, which manages a local `.venv` under the skill directory.
 - After changing config or managed metadata, run `scripts/run_python.sh validate_hub.py`.
 - `description` is the semantic text source for search; `text_vector` is an optional derived cache stored in `index.json`.
+- If a config change or validation result implies that the hub no longer matches config, confirm with the user before running `scripts/run_python.sh repair_hub.py`, unless the user has already clearly authorized automatic repair.
 
 ## Task model
 
@@ -97,6 +98,8 @@ Expected behavior:
 ## 4. Repair a hub
 
 Expected behavior:
+- Run this workflow immediately only when the user explicitly asks for repair or has already given clear standing permission for automatic repair.
+- If repair is only implied by a config change or by validation findings, first ask whether the user wants repair.
 - Verify `resource_hub_config.json` is present and valid JSON.
 - Ensure `videos/`, `images/`, and both `index.json` files exist.
 - Scan all resource directories and repair what can be repaired.
@@ -153,11 +156,13 @@ Expected behavior:
   - `content_sense.video_understanding_mode`
   - `text_vectorization`
   - `text_vectorization.api_key_env`
+  - `text_vectorization.base_url`
   - `text_vectorization.model`
   - `text_vectorization.dimensions`
 - After writing config, run `scripts/run_python.sh validate_hub.py`.
 - If the user asks for OpenAI GPT-5.4, recommend `frames` mode. Reserve `direct_upload` for OpenAI-compatible providers that explicitly support direct video input.
 - If the user enables or changes `text_vectorization`, explain that a repair pass is needed to materialize or refresh `text_vector`.
+- If the config change means existing resources or transcodes may now be out of sync, tell the user that repair is recommended and ask whether to run it, unless they already authorized automatic repair.
 - Explain operational consequences such as "a repair pass is now needed to materialize the new targets."
 
 ## Result reporting

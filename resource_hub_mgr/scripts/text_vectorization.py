@@ -4,15 +4,16 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
-import os
 import struct
 from typing import Any
 
 from common import HubError
+from llm_clients import get_ark_client
 
 TEXT_VECTORIZATION_PROVIDER = "volcengine_ark"
 TEXT_VECTORIZATION_ENCODING = "base64-f32le"
 TEXT_VECTORIZATION_TEXT_FIELD = "description"
+DEFAULT_TEXT_VECTORIZATION_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 TEXT_VECTORIZATION_MODEL = "doubao-embedding-vision-251215"
 DEFAULT_TEXT_VECTORIZATION_DIMENSIONS = 1024
 RESOURCE_SEARCH_QUERY_PROFILE = "resource_search_query_text_v1"
@@ -30,11 +31,13 @@ def load_text_vectorization_config(config: dict[str, Any]) -> dict[str, Any] | N
     if not isinstance(api_key_env, str) or not api_key_env.strip():
         raise HubError("text_vectorization.api_key_env must be a non-empty string")
 
+    base_url = raw.get("base_url", DEFAULT_TEXT_VECTORIZATION_BASE_URL)
+    if not isinstance(base_url, str) or not base_url.strip():
+        raise HubError("text_vectorization.base_url must be a non-empty string")
+
     model = raw.get("model", TEXT_VECTORIZATION_MODEL)
     if not isinstance(model, str) or not model.strip():
         raise HubError("text_vectorization.model must be a non-empty string")
-    if model.strip() != TEXT_VECTORIZATION_MODEL:
-        raise HubError(f"text_vectorization.model must be {TEXT_VECTORIZATION_MODEL}")
 
     dimensions = raw.get("dimensions", DEFAULT_TEXT_VECTORIZATION_DIMENSIONS)
     if not isinstance(dimensions, int) or dimensions <= 0:
@@ -42,6 +45,7 @@ def load_text_vectorization_config(config: dict[str, Any]) -> dict[str, Any] | N
 
     return {
         "api_key_env": api_key_env.strip(),
+        "base_url": base_url.strip(),
         "model": model.strip(),
         "dimensions": dimensions,
     }
@@ -53,11 +57,20 @@ def corpus_instruction_for_resource_search() -> str:
 
 def query_instruction_for_resource_search(resource_type: str | None = None) -> str:
     if resource_type == "image":
-        instruction = "根据用户对图片资源内容、风格、用途、氛围和主观偏好的描述，检索最匹配的资源描述文本"
+        instruction = (
+            "Retrieve the resource description text that best matches the user's description "
+            "of image content, style, usage, atmosphere, and subjective preferences"
+        )
     elif resource_type == "video":
-        instruction = "根据用户对视频资源内容、时间变化、风格、用途、氛围和主观偏好的描述，检索最匹配的资源描述文本"
+        instruction = (
+            "Retrieve the resource description text that best matches the user's description "
+            "of video content, temporal changes, style, usage, atmosphere, and subjective preferences"
+        )
     else:
-        instruction = "根据用户对资源内容、风格、用途、氛围和主观偏好的描述，检索最匹配的资源描述文本"
+        instruction = (
+            "Retrieve the resource description text that best matches the user's description "
+            "of resource content, style, usage, atmosphere, and subjective preferences"
+        )
     return f"Target_modality: text.\nInstruction:{instruction}\nQuery:"
 
 
@@ -69,19 +82,8 @@ def sha256_hex(text: str) -> str:
     return _sha256_text(text)
 
 
-def _load_client(api_key_env: str):
-    try:
-        from volcenginesdkarkruntime import Ark
-    except ImportError as exc:  # pragma: no cover - import failure depends on environment
-        raise HubError(
-            "The volcengine Ark SDK is required for text vectorization. "
-            "Install dependencies via scripts/run_python.sh."
-        ) from exc
-
-    api_key = os.environ.get(api_key_env)
-    if not api_key:
-        raise HubError(f"Environment variable {api_key_env} is not set")
-    return Ark(api_key=api_key)
+def _load_client(api_key_env: str, base_url: str):
+    return get_ark_client(api_key_env=api_key_env, base_url=base_url)
 
 
 def _extract_embedding(response: Any) -> list[float]:
@@ -105,14 +107,17 @@ def _embed_text(
     text: str,
     instruction: str,
 ) -> list[float]:
-    client = _load_client(str(vector_config["api_key_env"]))
+    client = _load_client(
+        str(vector_config["api_key_env"]),
+        str(vector_config["base_url"]),
+    )
     try:
         response = client.multimodal_embeddings.create(
             model=str(vector_config["model"]),
             encoding_format="float",
             dimensions=int(vector_config["dimensions"]),
-            instructions=instruction,
             input=[{"type": "text", "text": text}],
+            extra_body={"instructions": instruction},
         )
     except Exception as exc:  # noqa: BLE001
         raise HubError(f"Text vectorization failed: {exc}") from exc
@@ -172,6 +177,7 @@ def _vector_metadata(
 ) -> dict[str, Any]:
     return {
         "provider": TEXT_VECTORIZATION_PROVIDER,
+        "base_url": str(vector_config["base_url"]),
         "model": str(vector_config["model"]),
         "dimensions": int(vector_config["dimensions"]),
         "encoding": TEXT_VECTORIZATION_ENCODING,
@@ -252,6 +258,7 @@ def build_query_embedding(
     )
     return embedding, {
         "provider": TEXT_VECTORIZATION_PROVIDER,
+        "base_url": str(vector_config["base_url"]),
         "model": str(vector_config["model"]),
         "dimensions": int(vector_config["dimensions"]),
         "instruction_profile": RESOURCE_SEARCH_QUERY_PROFILE,

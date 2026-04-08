@@ -6,6 +6,7 @@ Use this reference when the user wants Codex to modify `resource_hub_config.json
 
 - Use `scripts/run_python.sh update_config.py` for deterministic changes.
 - After any write, run `scripts/run_python.sh validate_hub.py`.
+- If the new config implies existing resources may now be out of sync, ask the user whether to run `scripts/run_python.sh repair_hub.py` before repairing, unless the user already clearly authorized automatic repair.
 
 ## Common paths
 
@@ -20,6 +21,7 @@ Use this reference when the user wants Codex to modify `resource_hub_config.json
 - `content_sense.cache_time_hours`
 - `content_sense.video_understanding_mode`
 - `text_vectorization.api_key_env`
+- `text_vectorization.base_url`
 - `text_vectorization.model`
 - `text_vectorization.dimensions`
 
@@ -38,7 +40,9 @@ Use this reference when the user wants Codex to modify `resource_hub_config.json
 - Change content-sense cache TTL:
   - set `content_sense.cache_time_hours` to a non-negative hour value such as `24`, `72`, or `144`
 - Enable text vectorization:
-  - set `text_vectorization` to `{"api_key_env": "ARK_API_KEY", "model": "doubao-embedding-vision-251215", "dimensions": 1024}`
+  - set `text_vectorization` to `{"api_key_env": "ARK_COMPATIBLE_API_KEY", "base_url": "https://ark.cn-beijing.volces.com/api/v3", "model": "doubao-embedding-vision-251215", "dimensions": 1024}`
+- Change text-vector base URL:
+  - set `text_vectorization.base_url` to the target Ark-compatible endpoint URL
 - Change text-vector dimensions:
   - set `text_vectorization.dimensions` to a positive integer such as `512` or `1024`
 - Replace transcoders:
@@ -52,6 +56,7 @@ Use this reference when the user wants Codex to modify `resource_hub_config.json
 - For OpenAI GPT-5.4 family models, prefer `frames`; `direct_upload` is mainly for OpenAI-compatible non-GPT providers that support direct video upload.
 - `content_sense.cache_time_hours` is a local reuse TTL for cached cloud file ids; changing it affects whether future re-sensing uploads again.
 - `text_vectorization` is independent from `content_sense`; enabling it does not by itself create descriptions.
-- Current text vectorization requires the Volcengine Ark SDK and the `doubao-embedding-vision-251215` model.
-- After changing `text_vectorization.model` or `text_vectorization.dimensions`, tell the user that a `repair_hub.py` pass is needed to rebuild stored `text_vector` payloads.
+- Current text vectorization requires the Volcengine Ark SDK.
+- After changing `text_vectorization.base_url`, `text_vectorization.model`, or `text_vectorization.dimensions`, tell the user that a `repair_hub.py` pass is needed to rebuild stored `text_vector` payloads.
 - When changing transcoder targets, tell the user that a follow-up repair or regeneration step may be needed.
+- A config edit may justify repair, but should not silently trigger repair unless the user explicitly asked for it or has already granted standing permission for automatic repair.

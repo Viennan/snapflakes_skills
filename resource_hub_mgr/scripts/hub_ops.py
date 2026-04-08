@@ -11,6 +11,7 @@ from common import (
     DEFAULT_CONTENT_SENSE_CACHE_TIME_HOURS,
     DEFAULT_DESCRIPTION_LANGUAGE,
     HubError,
+    MAX_CONTENT_SENSE_DESCRIPTION_CHARS,
     RESOURCE_DIRS,
     config_path_from_hub,
     description_language_label,
@@ -20,6 +21,7 @@ from common import (
     load_json,
     make_auto_name_candidate,
     make_variation_path,
+    normalize_content_sense_description,
     normalize_description_language,
     resolution_rank,
     safe_stem_name,
@@ -248,12 +250,18 @@ def _build_description_payload(
 ) -> dict[str, str]:
     if not descriptions_enabled:
         return {
-            "description": _normalize_text_field((fallback or {}).get("description", "")),
+            "description": normalize_content_sense_description((fallback or {}).get("description", "")),
         }
 
-    description = _normalize_text_field((sensed or {}).get("description", (fallback or {}).get("description", "")))
+    description = normalize_content_sense_description(
+        (sensed or {}).get("description", (fallback or {}).get("description", ""))
+    )
     if not description:
         raise HubError("description must be non-empty when with_description is enabled")
+    if len(description) > MAX_CONTENT_SENSE_DESCRIPTION_CHARS:
+        raise HubError(
+            f"description must contain at most {MAX_CONTENT_SENSE_DESCRIPTION_CHARS} characters after normalization"
+        )
     return {"description": description}
 
 
@@ -338,7 +346,7 @@ def _finalize_name(
         candidate = make_auto_name_candidate(sensed_name, fallback=safe_stem_name(source_path) or "resource")
         mode = "content_sense"
     else:
-        candidate = safe_stem_name(source_path) or make_auto_name_candidate(source_path.stem, fallback="resource")
+        candidate = make_auto_name_candidate(safe_stem_name(source_path) or source_path.stem, fallback="resource")
         mode = "file_stem"
 
     final_name, suffix_added = ensure_unique_resource_name(type_dir, candidate)

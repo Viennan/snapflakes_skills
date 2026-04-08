@@ -2,3 +2,4 @@
 resource_hub_mgr/.venv/
 resource_hub_mgr/**/__pycache__/
 resource_hub_mgr/**/*.pyc
+.tmp
