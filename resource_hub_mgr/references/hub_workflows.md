@@ -1,6 +1,6 @@
 # Hub Workflows
 
-Use this reference when the user wants Codex to operate on a resource hub as a skill, not as a standalone CLI tool.
+Use this reference when Codex needs to carry out resource-hub work as a skill rather than as a raw CLI wrapper.
 
 ## Core operating principles
 
@@ -11,7 +11,7 @@ Use this reference when the user wants Codex to operate on a resource hub as a s
 - Only create transcodes for target specs that are actually realizable from the original.
 - All media probing, detection, frame extraction, and transcoding must use `ffmpeg` / `ffprobe` command invocations directly, or Python wrappers around those commands only.
 - All Python helpers should run through `scripts/run_python.sh`, which manages a local `.venv` under the skill directory.
-- After changing config or managed metadata, run `scripts/run_python.sh validate_hub.py`.
+- After changing config or hub contents, run `scripts/run_python.sh validate_hub.py`.
 - `description` is the semantic text source for search; `text_vector` is an optional derived cache stored in `index.json`.
 - If a config change or validation result implies that the hub no longer matches config, confirm with the user before running `scripts/run_python.sh repair_hub.py`, unless the user has already clearly authorized automatic repair.
 
@@ -23,9 +23,8 @@ Codex should map user intent into one of these skill tasks:
 2. Add or import resources
 3. Remove resources
 4. Repair a hub
-5. Inspect index or resource information
-6. Search and recommend resources
-7. Edit config
+5. Search and recommend resources
+6. Edit config
 
 The user does not need to speak in CLI parameters. Codex should infer the task from natural language and then carry out the matching workflow.
 
@@ -117,15 +116,7 @@ After resource repair:
 - Regenerate descriptions when `with_description` is enabled.
 - Return warnings and any remaining unrepairable problems.
 
-## 5. Inspect index or resource information
-
-Expected behavior:
-- For index inspection, read the matching `index.json`.
-- For single-resource inspection, read the resource entry from `index.json`.
-- When presenting a resource's variations, include absolute file paths to the underlying files.
-- Prefer concise summaries first; include full JSON when the user explicitly wants raw metadata.
-
-## 6. Search and recommend resources
+## 5. Search and recommend resources
 
 Expected behavior:
 - Use `scripts/run_python.sh find_resources.py` first.
@@ -141,7 +132,7 @@ Expected behavior:
 - For each recommendation, explain why it matches and where it may fall short.
 - If the hub lacks a good fit, say so clearly and suggest importing new assets or improving descriptions.
 
-## 7. Edit config
+## 6. Edit config
 
 Expected behavior:
 - Prefer `scripts/run_python.sh update_config.py` for deterministic config edits.

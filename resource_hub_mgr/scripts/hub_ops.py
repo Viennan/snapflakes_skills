@@ -127,32 +127,6 @@ def _description_language(config: dict[str, Any]) -> str:
     return normalized
 
 
-def get_index(hub_root: Path, resource_type: str) -> dict[str, Any]:
-    return _load_index_data(hub_root, resource_type)
-
-
-def _entry_with_paths(resource_dir: Path, entry: dict[str, Any]) -> dict[str, Any]:
-    payload = dict(entry)
-    variations = payload.get("variations", [])
-    if isinstance(variations, list):
-        enriched: list[dict[str, Any]] = []
-        for variation in variations:
-            if isinstance(variation, dict):
-                item = dict(variation)
-                item["f_path"] = str((resource_dir / str(variation.get("f_name", ""))).resolve())
-                enriched.append(item)
-        payload["variations"] = enriched
-    return payload
-
-
-def get_meta(hub_root: Path, resource_type: str, resource_name: str) -> dict[str, Any]:
-    data = _load_index_data(hub_root, resource_type)
-    entry = _resource_map(data).get(resource_name)
-    if entry is None:
-        raise HubError(f"Resource not found in index: {resource_name}")
-    return _entry_with_paths(_type_dir(hub_root, resource_type) / resource_name, entry)
-
-
 def remove_resource(hub_root: Path, resource_name: str, resource_type: str | None = None) -> dict[str, Any]:
     ensure_hub_structure(hub_root)
     if resource_type is None:

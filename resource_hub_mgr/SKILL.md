@@ -1,16 +1,16 @@
 ---
 name: "resource-hub-mgr"
-description: "Use when working with a resource hub: initialize or repair hub structure, add/remove resources, inspect or validate metadata, edit resource_hub_config.json, or search existing image/video assets by natural-language description."
+description: "Use when working with a resource hub: initialize or repair hub structure, add/remove resources, edit resource_hub_config.json, or search existing image/video assets by natural-language description."
 ---
 
 # Resource Hub Manager
 
-Use this skill when the user wants Codex to manage a `resource hub`, change `resource_hub_config.json`, find existing media assets by description, or explain why a hub is inconsistent.
+Use this skill when the user wants Codex to manage a `resource hub`, update `resource_hub_config.json`, search existing media by description, or explain why a hub is inconsistent.
 
 ## When to load references
 
 - Read `references/resource_hub.CN.md` for hub schema, naming rules, config semantics, and resource constraints.
-- Read `references/hub_workflows.md` before doing init/add/remove/repair/index/resource-entry style work or when you need the skill's operational contract.
+- Read `references/hub_workflows.md` before doing init/add/remove/repair work or when you need the skill's operational contract.
 - Read `references/search_workflow.md` when the user wants recommendations such as "find a transparent blue loading animation" or "look for a calm office background image".
 - Read `references/config_editing.md` when the user wants to enable descriptions, change description language, change transcoders, or switch video understanding mode.
 
@@ -22,8 +22,6 @@ Prefer the bundled scripts for repeatable work:
 - `scripts/run_python.sh add_resource.py --hub <hub_root> --source <asset> [--name <resource_name>]`
 - `scripts/run_python.sh remove_resource.py --hub <hub_root> --name <resource_name> [--type video|image]`
 - `scripts/run_python.sh repair_hub.py --hub <hub_root>`
-- `scripts/run_python.sh get_index.py --hub <hub_root> --type video|image`
-- `scripts/run_python.sh get_meta.py --hub <hub_root> --type video|image --name <resource_name>`
 - `scripts/run_python.sh validate_hub.py <hub_root>`
 - `scripts/run_python.sh find_resources.py --hub <hub_root> --query "..." [filters]`
 - `scripts/run_python.sh update_config.py --hub <hub_root> ...`
@@ -38,10 +36,10 @@ Within a single script process, LLM provider clients should be reused via shared
 1. Identify the hub root. Prefer a user-provided path; otherwise look for `resource_hub_config.json`.
 2. Treat `index.json` as the single source of truth for each resource type.
 3. For config edits, use `update_config.py` instead of manual JSON editing whenever possible.
-4. After changing config or managed metadata, run `validate_hub.py`.
+4. After changing config or hub contents, run `validate_hub.py`.
 5. If a config change or validation result implies that the hub no longer matches the active config, ask the user whether to run `repair_hub.py` before doing so, unless the user already clearly authorized automatic repair.
 6. When the user asks for assets by description, run `find_resources.py` first, then inspect the top matches' entries in `index.json` before recommending them.
-7. When the user asks for init/add/remove/repair/index/resource-entry work, follow `references/hub_workflows.md` and adapt the workflow to the user's natural-language request.
+7. When the user asks for init/add/remove/repair work, follow `references/hub_workflows.md` and adapt the workflow to the user's natural-language request.
 8. If search results are weak, say so clearly and suggest importing new assets or improving descriptions instead of overstating confidence.
 
 ## Task guidance
@@ -91,7 +89,7 @@ Within a single script process, LLM provider clients should be reused via shared
 
 ### Repair and manual management
 
-- Prefer the deterministic helpers for init/add/remove/repair/index/resource-entry work instead of hand-editing files.
+- Prefer the deterministic helpers for init/add/remove/repair work instead of hand-editing files.
 - For workflows that still need manual judgment, follow `references/hub_workflows.md`, then run `validate_hub.py`.
 - If validation or inspection shows that the current hub contents do not match config, pause and confirm before running `repair_hub.py`, unless the user has already given standing permission for automatic repair.
 - Prefer natural-language task decomposition over CLI-shaped thinking. Translate requests like "import these two files", "repair the hub", or "show me the best matching transparent animation" directly into the corresponding workflow.
