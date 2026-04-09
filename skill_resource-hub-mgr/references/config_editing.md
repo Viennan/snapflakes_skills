@@ -1,6 +1,6 @@
 # Config Editing
 
-Use this reference when the user wants Codex to modify `resource_hub_config.json`.
+Use this reference when the user wants the assistant to modify `resource_hub_config.json`.
 
 ## Recommended flow
 

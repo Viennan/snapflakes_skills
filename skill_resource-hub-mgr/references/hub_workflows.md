@@ -1,6 +1,6 @@
 # Hub Workflows
 
-Use this reference when Codex needs to carry out resource-hub work as a skill rather than as a raw CLI wrapper.
+Use this reference when the assistant needs to carry out resource-hub work as a skill rather than as a raw CLI wrapper.
 
 ## Core rules
 
@@ -8,6 +8,7 @@ Use this reference when Codex needs to carry out resource-hub work as a skill ra
 - Infer the workflow from natural language; the user does not need to speak in CLI parameters.
 - Prefer the bundled scripts through `scripts/run_python.sh`.
 - `index.json` is the single source of truth for each resource type.
+- Do not operate on the same hub concurrently. Finish one task before starting another against that hub, and keep batch imports sequential within a single invocation.
 - After changing config or hub contents, run `scripts/run_python.sh validate_hub.py`.
 - If a config change or validation result implies that the hub no longer matches config, confirm with the user before running `scripts/run_python.sh repair_hub.py`, unless the user has already clearly authorized automatic repair.
 
@@ -31,9 +32,10 @@ Map user intent into one of these tasks:
 
 ## 2. Add or import resources
 
-- Run `scripts/run_python.sh add_resource.py --hub <hub_root> --source <asset> [--name <resource_name>]`.
-- Use this workflow both for single-file imports and repeated multi-file imports.
+- Run `scripts/run_python.sh add_resource.py --hub <hub_root> --source <asset> [--source <asset> ...] [--name <resource_name> ...]`.
+- For multi-file imports, repeat `--source`. If you also want explicit names, repeat `--name` in the same order and with the same count.
 - If the user did not provide a resource name, omit `--name` and let the import workflow auto-name the resource.
+- Multi-file imports should stay sequential in one process; do not split them into parallel operations against the same hub.
 - The script auto-names the resource from content sensing only when `with_description` is enabled for that resource type; otherwise it falls back to the source file stem.
 - Report the final chosen name clearly.
 - After import, summarize the detected type, created files, and any warnings.
@@ -41,7 +43,9 @@ Map user intent into one of these tasks:
 
 ## 3. Remove resources
 
-- Run `scripts/run_python.sh remove_resource.py --hub <hub_root> --name <resource_name> [--type video|image]`.
+- Run `scripts/run_python.sh remove_resource.py --hub <hub_root> --name <resource_name> [--name <resource_name> ...] [--type video|image ...]`.
+- For multi-resource removals, repeat `--name`. `--type` may be omitted, provided once for all names, or repeated once per name in the same order.
+- Multi-resource removals should stay sequential in one process; do not split them into parallel operations against the same hub.
 - If the user did not specify type and the name is ambiguous, resolve that before removal.
 - Run validation after the removal.
 - Report what was removed, or clearly say if the resource was not found.
@@ -73,7 +77,7 @@ Map user intent into one of these tasks:
 
 ## Result reporting
 
-For any state-changing workflow, Codex should report:
+For any state-changing workflow, the assistant should report:
 - what changed
 - which files were created, updated, or removed
 - warnings or unresolved issues
