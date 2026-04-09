@@ -47,7 +47,7 @@ Within a single script process, LLM provider clients should be reused via shared
 ### Config edits
 
 - Prefer setting whole stable paths such as `description_language`, `video.transcoders`, `image.with_description`, or `content_sense.video_understanding_mode`.
-- For semantic search configuration, also prefer whole stable paths such as `text_vectorization`, `text_vectorization.base_url`, `text_vectorization.model`, or `text_vectorization.dimensions`.
+- For semantic search configuration, also prefer whole stable paths such as `text_vectorization`, `text_vectorization.base_url_env`, `text_vectorization.model`, or `text_vectorization.dimensions`.
 - Explain any operational consequence of the config change, especially when a follow-up `repair` is likely needed.
 - Do not run `repair_hub.py` immediately after a config edit unless the user explicitly asked for automatic repair; first confirm whether they want repair.
 - If the requested change affects description generation, mention provider compatibility, description language, and the current `video_understanding_mode`.

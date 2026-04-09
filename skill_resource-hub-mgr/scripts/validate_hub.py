@@ -20,6 +20,7 @@ from common import (
     iter_resource_types,
     load_json,
     normalize_description_language,
+    validate_env_backed_string_config,
 )
 from text_vectorization import (
     RESOURCE_SEARCH_CORPUS_PROFILE,
@@ -111,7 +112,16 @@ def validate_config(config: dict[str, Any], errors: list[str]) -> None:
         add_error(errors, "config.content_sense must exist when with_description is enabled")
         return
     if isinstance(content_sense, dict):
-        for key in ("open_ai_base_url", "open_ai_api_key_env", "model"):
+        try:
+            validate_env_backed_string_config(
+                content_sense,
+                env_key="open_ai_base_url_env",
+                value_key="open_ai_base_url",
+                field_name="config.content_sense",
+            )
+        except HubError as exc:
+            add_error(errors, str(exc))
+        for key in ("open_ai_api_key_env", "model"):
             value = content_sense.get(key)
             if not isinstance(value, str) or not value.strip():
                 add_error(errors, f"config.content_sense.{key} must be a non-empty string")
@@ -124,7 +134,7 @@ def validate_config(config: dict[str, Any], errors: list[str]) -> None:
                 add_error(errors, "config.content_sense.video_understanding_mode must be 'frames' or 'direct_upload'")
 
     try:
-        load_text_vectorization_config(config)
+        load_text_vectorization_config(config, resolve_env=False)
     except HubError as exc:
         add_error(errors, str(exc))
 

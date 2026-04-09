@@ -26,6 +26,7 @@ from common import (
     resolution_rank,
     safe_stem_name,
     sort_variations,
+    validate_env_backed_string_config,
 )
 from content_sense import sense_asset
 from media_ops import (
@@ -179,7 +180,13 @@ def _ensure_content_sense_ready(config: dict[str, Any], resource_type: str) -> N
     content_sense = config.get("content_sense")
     if not isinstance(content_sense, dict):
         raise HubError("content_sense config is required when with_description is enabled")
-    for key in ("open_ai_base_url", "open_ai_api_key_env", "model"):
+    validate_env_backed_string_config(
+        content_sense,
+        env_key="open_ai_base_url_env",
+        value_key="open_ai_base_url",
+        field_name="content_sense",
+    )
+    for key in ("open_ai_api_key_env", "model"):
         value = content_sense.get(key)
         if not isinstance(value, str) or not value.strip():
             raise HubError(f"content_sense.{key} must be a non-empty string")

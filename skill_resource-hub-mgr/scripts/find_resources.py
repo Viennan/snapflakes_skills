@@ -11,6 +11,7 @@ from typing import Any
 
 from common import (
     DEFAULT_DESCRIPTION_LANGUAGE,
+    HubError,
     RESOURCE_DIRS,
     contains_ascii_alpha,
     contains_cjk,
@@ -22,7 +23,9 @@ from common import (
     make_variation_path,
     normalize_description_language,
     normalize_text,
+    require_non_empty_string,
     resolution_rank,
+    resolve_env_backed_string_config,
 )
 from llm_clients import get_openai_client
 from text_vectorization import (
@@ -232,12 +235,21 @@ def rewrite_query_to_description_language(
         )
         return query
 
-    api_key_env = content_sense.get("open_ai_api_key_env")
-    base_url = content_sense.get("open_ai_base_url")
-    model = content_sense.get("model")
-    if not all(isinstance(value, str) and value.strip() for value in (api_key_env, base_url, model)):
+    try:
+        api_key_env = require_non_empty_string(
+            content_sense.get("open_ai_api_key_env"),
+            "content_sense.open_ai_api_key_env",
+        )
+        base_url = resolve_env_backed_string_config(
+            content_sense,
+            env_key="open_ai_base_url_env",
+            value_key="open_ai_base_url",
+            field_name="content_sense",
+        )
+        model = require_non_empty_string(content_sense.get("model"), "content_sense.model")
+    except HubError as exc:
         warnings.append(
-            "Query rewrite skipped because content_sense client config is incomplete; using original query"
+            f"Query rewrite skipped because content_sense client config is incomplete: {exc}; using original query"
         )
         return query
 
@@ -261,11 +273,11 @@ def rewrite_query_to_description_language(
 
     try:
         client = get_openai_client(
-            api_key_env=str(api_key_env).strip(),
-            base_url=str(base_url).strip(),
+            api_key_env=api_key_env,
+            base_url=base_url,
         )
         response = client.responses.create(
-            model=str(model).strip(),
+            model=model,
             input=[
                 {
                     "role": "user",

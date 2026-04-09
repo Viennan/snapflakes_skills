@@ -7,7 +7,12 @@ import hashlib
 import struct
 from typing import Any
 
-from common import HubError
+from common import (
+    HubError,
+    require_non_empty_string,
+    resolve_env_backed_string_config,
+    validate_env_backed_string_config,
+)
 from llm_clients import get_ark_client
 
 TEXT_VECTORIZATION_PROVIDER = "volcengine_ark"
@@ -20,35 +25,60 @@ RESOURCE_SEARCH_QUERY_PROFILE = "resource_search_query_text_v1"
 RESOURCE_SEARCH_CORPUS_PROFILE = "resource_search_corpus_text_v1"
 
 
-def load_text_vectorization_config(config: dict[str, Any]) -> dict[str, Any] | None:
+def load_text_vectorization_config(
+    config: dict[str, Any],
+    *,
+    resolve_env: bool = True,
+) -> dict[str, Any] | None:
     raw = config.get("text_vectorization")
     if raw is None:
         return None
     if not isinstance(raw, dict):
         raise HubError("text_vectorization must be an object when present")
 
-    api_key_env = raw.get("api_key_env")
-    if not isinstance(api_key_env, str) or not api_key_env.strip():
-        raise HubError("text_vectorization.api_key_env must be a non-empty string")
+    api_key_env = require_non_empty_string(raw.get("api_key_env"), "text_vectorization.api_key_env")
+    base_url_env = None
+    if "base_url_env" in raw:
+        base_url_env = require_non_empty_string(raw.get("base_url_env"), "text_vectorization.base_url_env")
+    if resolve_env:
+        base_url = resolve_env_backed_string_config(
+            raw,
+            env_key="base_url_env",
+            value_key="base_url",
+            field_name="text_vectorization",
+            default=DEFAULT_TEXT_VECTORIZATION_BASE_URL,
+        )
+    else:
+        validate_env_backed_string_config(
+            raw,
+            env_key="base_url_env",
+            value_key="base_url",
+            field_name="text_vectorization",
+            default=DEFAULT_TEXT_VECTORIZATION_BASE_URL,
+        )
+        if "base_url" in raw:
+            base_url = require_non_empty_string(raw.get("base_url"), "text_vectorization.base_url")
+        elif base_url_env is None:
+            base_url = DEFAULT_TEXT_VECTORIZATION_BASE_URL
+        else:
+            base_url = None
 
-    base_url = raw.get("base_url", DEFAULT_TEXT_VECTORIZATION_BASE_URL)
-    if not isinstance(base_url, str) or not base_url.strip():
-        raise HubError("text_vectorization.base_url must be a non-empty string")
-
-    model = raw.get("model", TEXT_VECTORIZATION_MODEL)
-    if not isinstance(model, str) or not model.strip():
-        raise HubError("text_vectorization.model must be a non-empty string")
+    model = require_non_empty_string(raw.get("model", TEXT_VECTORIZATION_MODEL), "text_vectorization.model")
 
     dimensions = raw.get("dimensions", DEFAULT_TEXT_VECTORIZATION_DIMENSIONS)
     if not isinstance(dimensions, int) or dimensions <= 0:
         raise HubError("text_vectorization.dimensions must be a positive integer")
 
-    return {
+    normalized: dict[str, Any] = {
         "api_key_env": api_key_env.strip(),
-        "base_url": base_url.strip(),
         "model": model.strip(),
         "dimensions": dimensions,
     }
+    if base_url is not None:
+        normalized["base_url"] = base_url.strip()
+    if base_url_env is not None:
+        normalized["base_url_env"] = base_url_env
+    return normalized
 
 
 def corpus_instruction_for_resource_search() -> str:

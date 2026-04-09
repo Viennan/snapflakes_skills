@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -66,6 +67,56 @@ DESCRIPTION_LANGUAGE_ALIASES = {
 
 class HubError(RuntimeError):
     pass
+
+
+def require_non_empty_string(value: Any, field_name: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise HubError(f"{field_name} must be a non-empty string")
+    return value.strip()
+
+
+def load_env_string(env_name: str) -> str:
+    value = os.environ.get(env_name)
+    if not isinstance(value, str) or not value.strip():
+        raise HubError(f"Environment variable {env_name} is not set")
+    return value.strip()
+
+
+def validate_env_backed_string_config(
+    raw: dict[str, Any],
+    *,
+    env_key: str,
+    value_key: str,
+    field_name: str,
+    default: str | None = None,
+) -> None:
+    if env_key in raw:
+        require_non_empty_string(raw.get(env_key), f"{field_name}.{env_key}")
+        return
+    if value_key in raw:
+        require_non_empty_string(raw.get(value_key), f"{field_name}.{value_key}")
+        return
+    if default is not None:
+        return
+    raise HubError(f"{field_name}.{env_key} or {field_name}.{value_key} must be a non-empty string")
+
+
+def resolve_env_backed_string_config(
+    raw: dict[str, Any],
+    *,
+    env_key: str,
+    value_key: str,
+    field_name: str,
+    default: str | None = None,
+) -> str:
+    if env_key in raw:
+        env_name = require_non_empty_string(raw.get(env_key), f"{field_name}.{env_key}")
+        return load_env_string(env_name)
+    if value_key in raw:
+        return require_non_empty_string(raw.get(value_key), f"{field_name}.{value_key}")
+    if default is not None:
+        return default.strip()
+    raise HubError(f"{field_name}.{env_key} or {field_name}.{value_key} must be a non-empty string")
 
 
 def load_json(path: Path) -> Any:

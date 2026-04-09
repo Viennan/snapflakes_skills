@@ -147,7 +147,7 @@ Expected behavior:
   - `content_sense.video_understanding_mode`
   - `text_vectorization`
   - `text_vectorization.api_key_env`
-  - `text_vectorization.base_url`
+  - `text_vectorization.base_url_env`
   - `text_vectorization.model`
   - `text_vectorization.dimensions`
 - After writing config, run `scripts/run_python.sh validate_hub.py`.

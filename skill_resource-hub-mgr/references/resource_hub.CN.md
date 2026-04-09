@@ -82,7 +82,7 @@ resource_hub_root/
 {
     "description_language": "en",
     "content_sense": {
-        "open_ai_base_url": "https://example.invalid/v1",
+        "open_ai_base_url_env": "OPENAI_COMPATIBLE_BASE_URL",
         "open_ai_api_key_env": "OPENAI_COMPATIBLE_API_KEY",
         "model": "gpt-4.1-mini",
         "cache_time_hours": 144,
@@ -90,7 +90,7 @@ resource_hub_root/
     },
     "text_vectorization": {
         "api_key_env": "ARK_COMPATIBLE_API_KEY",
-        "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+        "base_url_env": "ARK_COMPATIBLE_BASE_URL",
         "model": "doubao-embedding-vision-251215",
         "dimensions": 1024
     },
@@ -129,7 +129,8 @@ resource_hub_root/
 - `video.transcoders` 与 `image.transcoders` 缺省时等价于空列表。
 - `video.with_description` 与 `image.with_description` 缺省时表示该资源类型关闭语义感知。
 - `content_sense.cache_time_hours` 为可选字段，单位为小时，缺省值为 `144`。
-- `text_vectorization.base_url` 为可选字段，缺省值为 `https://ark.cn-beijing.volces.com/api/v3`。
+- `text_vectorization.base_url_env` 为可选字段，其值是环境变量名；当存在时，应从对应环境变量读取目标 Ark/Ark-compatible 向量服务端点。
+- `text_vectorization.base_url` 为兼容旧配置保留的可选字段；仅当 `base_url_env` 不存在时使用；若二者均缺省，则等价于 `https://ark.cn-beijing.volces.com/api/v3`。
 - `text_vectorization.dimensions` 为可选字段，缺省值为 `1024`。
 
 ### 2. `videos/index.json`
@@ -431,7 +432,7 @@ def determine_resolution(x: int, y: int) -> str:
 
 ```jsonc
 {
-    "open_ai_base_url": "https://example.invalid/v1",
+    "open_ai_base_url_env": "OPENAI_COMPATIBLE_BASE_URL",
     "open_ai_api_key_env": "OPENAI_API_KEY",
     "model": "gpt-4.1-mini",
     "cache_time_hours": 144,
@@ -439,8 +440,11 @@ def determine_resolution(x: int, y: int) -> str:
 }
 ```
 
-- 当 `content_sense` 存在时，`open_ai_base_url`、`open_ai_api_key_env` 与 `model` 均为必填。
+- 当 `content_sense` 存在时，`open_ai_api_key_env` 与 `model` 均为必填。
 - `open_ai_api_key_env` 的值是环境变量名，而不是实际 API Key。
+- `open_ai_base_url_env` 为推荐字段，其值是环境变量名，用于读取目标 OpenAI-compatible 服务端点。
+- 为兼容旧配置，也允许使用 `open_ai_base_url` 直接填写端点 URL；当 `open_ai_base_url_env` 存在时，应优先使用环境变量中的值。
+- `open_ai_base_url_env` 与 `open_ai_base_url` 至少应提供一个。
 - `cache_time_hours` 为可选字段，表示本地认为云端上传文件可复用的缓存有效期，单位为小时；缺省值为 `144`。
 - 若任一资源类型启用了 `with_description`，则 `content_sense` 必须存在且配置完整。
 - 当 `video.with_description` 存在时，`content_sense.video_understanding_mode` 也必须存在。
@@ -456,7 +460,7 @@ def determine_resolution(x: int, y: int) -> str:
 ```jsonc
 {
     "api_key_env": "ARK_COMPATIBLE_API_KEY",
-    "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+    "base_url_env": "ARK_COMPATIBLE_BASE_URL",
     "model": "doubao-embedding-vision-251215",
     "dimensions": 1024
 }
@@ -465,7 +469,9 @@ def determine_resolution(x: int, y: int) -> str:
 - `text_vectorization` 使用独立配置，不复用 `content_sense`。
 - 当前实现必须使用火山方舟官方 SDK 调用，不得通过 OpenAI SDK 调用该向量模型。
 - `api_key_env` 的值是环境变量名，而不是实际 API Key。
-- `base_url` 为可选字段，用于指定目标 Ark/Ark-compatible 向量服务端点；缺省值为 `https://ark.cn-beijing.volces.com/api/v3`。
+- `base_url_env` 为推荐字段，其值是环境变量名，用于读取目标 Ark/Ark-compatible 向量服务端点。
+- 为兼容旧配置，也允许使用 `base_url` 直接填写端点 URL；当 `base_url_env` 存在时，应优先使用环境变量中的值。
+- `base_url_env` 与 `base_url` 均缺省时，默认使用 `https://ark.cn-beijing.volces.com/api/v3`。
 - `model` 为可选字段，用于指定目标文本向量化模型；缺省值为 `doubao-embedding-vision-251215`。
 - `dimensions` 为稠密向量维度，缺省值为 `1024`。
 - 当前仓库场景属于“文本 Query 检索文本 Corpus”的召回/排序任务：

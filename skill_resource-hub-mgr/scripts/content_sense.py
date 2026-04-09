@@ -14,6 +14,8 @@ from common import (
     MAX_AUTO_RESOURCE_NAME_CHARS,
     MAX_CONTENT_SENSE_DESCRIPTION_CHARS,
     description_language_label,
+    require_non_empty_string,
+    resolve_env_backed_string_config,
     make_auto_name_candidate,
     normalize_content_sense_description,
     normalize_description_language,
@@ -32,16 +34,17 @@ def _load_client(config: dict[str, Any]):
     if not isinstance(content_sense, dict):
         raise HubError("content_sense config is required for content sensing")
 
-    api_key_env = content_sense.get("open_ai_api_key_env")
-    if not isinstance(api_key_env, str) or not api_key_env.strip():
-        raise HubError("content_sense.open_ai_api_key_env must be a non-empty string")
-
-    base_url = content_sense.get("open_ai_base_url")
-    if not isinstance(base_url, str) or not base_url.strip():
-        raise HubError("content_sense.open_ai_base_url must be a non-empty string")
-    model = content_sense.get("model")
-    if not isinstance(model, str) or not model.strip():
-        raise HubError("content_sense.model must be a non-empty string")
+    api_key_env = require_non_empty_string(
+        content_sense.get("open_ai_api_key_env"),
+        "content_sense.open_ai_api_key_env",
+    )
+    base_url = resolve_env_backed_string_config(
+        content_sense,
+        env_key="open_ai_base_url_env",
+        value_key="open_ai_base_url",
+        field_name="content_sense",
+    )
+    model = require_non_empty_string(content_sense.get("model"), "content_sense.model")
 
     cache_time_hours = content_sense.get("cache_time_hours", DEFAULT_CONTENT_SENSE_CACHE_TIME_HOURS)
     if not isinstance(cache_time_hours, (int, float)) or cache_time_hours < 0:
@@ -52,11 +55,16 @@ def _load_client(config: dict[str, Any]):
     if description_language is None:
         raise HubError("description_language must be one of: en, zh-CN")
 
+    resolved_content_sense = dict(content_sense)
+    resolved_content_sense["open_ai_api_key_env"] = api_key_env
+    resolved_content_sense["open_ai_base_url"] = base_url
+    resolved_content_sense["model"] = model
+
     client = get_openai_client(
-        api_key_env=api_key_env.strip(),
-        base_url=base_url.strip(),
+        api_key_env=api_key_env,
+        base_url=base_url,
     )
-    return client, content_sense, model, float(cache_time_hours), description_language
+    return client, resolved_content_sense, model, float(cache_time_hours), description_language
 
 
 def _extract_json_object(text: str) -> dict[str, Any]:
