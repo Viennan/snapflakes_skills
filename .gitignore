@@ -1,5 +1,5 @@
 .DS_Store
-resource_hub_mgr/.venv/
-resource_hub_mgr/**/__pycache__/
-resource_hub_mgr/**/*.pyc
+**/.venv/
+**/__pycache__/
+**/*.pyc
 .tmp
