@@ -9,15 +9,24 @@ from typing import Any
 from common import HubError
 from hub_ops import add_resource
 
+HELP_EPILOG = """Examples:
+  scripts/run_python.sh add_resource.py --hub /path/to/hub --source /assets/logo.png
+  scripts/run_python.sh add_resource.py --hub /path/to/hub --source /assets/a.png --name alpha --source /assets/b.mov --name beta
+"""
+
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Add one or more resources into a resource hub.")
+    parser = argparse.ArgumentParser(
+        description="Import one or more source media files into a resource hub sequentially.",
+        epilog=HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--hub", required=True, help="Path to the resource hub root.")
     parser.add_argument(
         "--source",
         action="append",
         required=True,
-        help="Path to a source media file. Repeat --source to import multiple files sequentially.",
+        help="Path to a source media file. Repeat --source to import multiple files in one sequential batch.",
     )
     parser.add_argument(
         "--name",

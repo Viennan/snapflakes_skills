@@ -1,9 +1,34 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Print wrapper help early so users can discover script-specific help commands.
+case "${1:-}" in
+    -h|--help)
+        cat <<'EOF'
+Usage: run_python.sh <script.py> [args...]
+
+Run a resource-hub-mgr Python helper inside the skill-local virtualenv.
+The wrapper auto-creates .venv and installs requirements.txt when needed.
+
+Examples:
+  run_python.sh init_hub.py --hub /path/to/hub
+  run_python.sh validate_hub.py --hub /path/to/hub
+  run_python.sh find_resources.py --hub /path/to/hub --query "blue loading animation"
+
+Tip:
+  Use `run_python.sh <script.py> --help` for script-specific options.
+EOF
+        exit 0
+        ;;
+esac
+
 # Require at least the target Python script path.
 if [ "$#" -lt 1 ]; then
-    echo "Usage: $0 <script.py> [args...]" >&2
+    cat <<'EOF' >&2
+Usage: run_python.sh <script.py> [args...]
+
+Use `run_python.sh <script.py> --help` to see the selected helper's CLI usage.
+EOF
     exit 1
 fi
 

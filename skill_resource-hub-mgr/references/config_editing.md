@@ -5,8 +5,25 @@ Use this reference when the user wants the assistant to modify `resource_hub_con
 ## Recommended flow
 
 - Use `scripts/run_python.sh update_config.py` for deterministic changes.
-- After any write, run `scripts/run_python.sh validate_hub.py`.
+- After any write, run `scripts/run_python.sh validate_hub.py --hub <hub_root>`.
 - If the new config implies existing resources may now be out of sync, ask the user whether to run `scripts/run_python.sh repair_hub.py` before repairing, unless the user already clearly authorized automatic repair.
+- If exact dotted paths, quoting, or JSON value syntax are unclear, run `scripts/run_python.sh update_config.py --help` first.
+
+## CLI Shape
+
+- Print the full config:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --print`
+- Read one dotted path:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --get <path>`
+- Set one dotted path:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --set <path> <value>`
+- Delete one dotted path:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --delete <path>`
+
+Notes:
+- `VALUE` is parsed as JSON first, then falls back to a raw string if JSON parsing fails.
+- For JSON string values, include quotes in the shell argument, for example `'"en"'`.
+- For JSON objects or arrays, pass valid JSON such as `'{"resolution":"720p"}'` or `'[{"resolution":"720p","fps":30}]'`.
 
 ## Prefer stable paths
 
@@ -51,6 +68,21 @@ Use this reference when the user wants the assistant to modify `resource_hub_con
   - set `text_vectorization.dimensions` to a positive integer such as `512` or `1024`
 - Replace transcoders:
   - set `video.transcoders` or `image.transcoders` to the full target list
+
+## Command Examples
+
+- Print the full config:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --print`
+- Read the repository language:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --get description_language`
+- Set the repository language to English:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --set description_language '"en"'`
+- Enable image descriptions:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --set image.with_description '{"resolution":"720p"}'`
+- Replace all video transcoders:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --set video.transcoders '[{"resolution":"1080p","fps":60},{"resolution":"720p","fps":30}]'`
+- Delete `text_vectorization`:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --delete text_vectorization`
 
 ## User-facing cautions
 

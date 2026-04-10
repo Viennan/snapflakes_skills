@@ -13,6 +13,7 @@ from common import (
     DEFAULT_DESCRIPTION_LANGUAGE,
     HubError,
     RESOURCE_DIRS,
+    RESOLUTIONS,
     contains_ascii_alpha,
     contains_cjk,
     config_path_from_hub,
@@ -53,18 +54,40 @@ FIELD_WEIGHTS = {
 }
 ASCII_TOKEN_RE = re.compile(r"[a-z0-9]+")
 CJK_SEQUENCE_RE = re.compile(r"[\u4e00-\u9fff]+")
+HELP_EPILOG = """Examples:
+  scripts/run_python.sh find_resources.py --hub /path/to/hub --query "blue loading animation"
+  scripts/run_python.sh find_resources.py --hub /path/to/hub --query "transparent spinner" --type video --require-alpha
+  scripts/run_python.sh find_resources.py --hub /path/to/hub --query "poster background" --type image --min-resolution 1080p --limit 5
+"""
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Search resource hub assets by natural-language description.")
+    parser = argparse.ArgumentParser(
+        description="Search resource hub assets by natural-language description and optional hard filters.",
+        epilog=HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--hub", required=True, help="Path to the resource hub root.")
     parser.add_argument("--query", required=True, help="Natural-language search query.")
-    parser.add_argument("--type", choices=sorted(RESOURCE_DIRS), help="Restrict resource type.")
-    parser.add_argument("--limit", type=int, default=10, help="Maximum number of results.")
-    parser.add_argument("--require-alpha", action="store_true", help="Only return alpha-capable variations.")
-    parser.add_argument("--min-resolution", help="Minimum logical resolution.")
-    parser.add_argument("--min-fps", type=int, help="Minimum fps for video results.")
-    return parser.parse_args()
+    parser.add_argument("--type", choices=sorted(RESOURCE_DIRS), help="Restrict results to image or video.")
+    parser.add_argument("--limit", type=int, default=10, help="Maximum number of results to return. Default: 10.")
+    parser.add_argument(
+        "--require-alpha",
+        action="store_true",
+        help="Only return variations with alpha / transparent pixels.",
+    )
+    parser.add_argument(
+        "--min-resolution",
+        choices=RESOLUTIONS,
+        help="Minimum logical resolution. Choices: 360p, 480p, 540p, 720p, 1080p, 2k, 4k, 8k.",
+    )
+    parser.add_argument("--min-fps", type=int, help="Minimum fps for video results. Ignored for image results.")
+    args = parser.parse_args()
+    if args.limit < 0:
+        parser.error("--limit must be greater than or equal to 0")
+    if args.min_fps is not None and args.min_fps < 0:
+        parser.error("--min-fps must be greater than or equal to 0")
+    return args
 
 
 def stringify_variation(resource_type: str, variation: dict[str, Any]) -> str:

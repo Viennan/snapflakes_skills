@@ -9,7 +9,8 @@ Use this reference when the assistant needs to carry out resource-hub work as a 
 - Prefer the bundled scripts through `scripts/run_python.sh`.
 - `index.json` is the single source of truth for each resource type.
 - Do not operate on the same hub concurrently. Finish one task before starting another against that hub, and keep batch imports sequential within a single invocation.
-- After changing config or hub contents, run `scripts/run_python.sh validate_hub.py`.
+- After changing config or hub contents, run `scripts/run_python.sh validate_hub.py --hub <hub_root>`.
+- If exact CLI flags, repeated argument shapes, or quoting rules are unclear, run `scripts/run_python.sh <script>.py --help` before executing.
 - If a config change or validation result implies that the hub no longer matches config, confirm with the user before running `scripts/run_python.sh repair_hub.py`, unless the user has already clearly authorized automatic repair.
 
 ## Workflow map
@@ -70,7 +71,7 @@ Map user intent into one of these tasks:
 ## 6. Edit config
 
 - Prefer `scripts/run_python.sh update_config.py` for deterministic config edits.
-- After writing config, run `scripts/run_python.sh validate_hub.py`.
+- After writing config, run `scripts/run_python.sh validate_hub.py --hub <hub_root>`.
 - If the user enables or changes `text_vectorization`, explain that a repair pass is needed to materialize or refresh `text_vector`.
 - If the config change means existing resources or transcodes may now be out of sync, tell the user that repair is recommended and ask whether to run it, unless they already authorized automatic repair.
 - For concrete config paths and edit patterns, use `references/config_editing.md`.
@@ -89,3 +90,16 @@ For any state-changing workflow, the assistant should report:
   - any uniqueness suffix added during conflict resolution
 
 When confidence is low, prefer explicit uncertainty over fabricated certainty.
+
+## CLI Examples
+
+- Initialize a hub:
+  - `scripts/run_python.sh init_hub.py --hub <hub_root>`
+- Validate a hub:
+  - `scripts/run_python.sh validate_hub.py --hub <hub_root>`
+- Import two files with explicit names:
+  - `scripts/run_python.sh add_resource.py --hub <hub_root> --source /assets/a.png --name alpha --source /assets/b.mov --name beta`
+- Remove two image resources:
+  - `scripts/run_python.sh remove_resource.py --hub <hub_root> --name alpha --name beta --type image`
+- Repair a hub:
+  - `scripts/run_python.sh repair_hub.py --hub <hub_root>`

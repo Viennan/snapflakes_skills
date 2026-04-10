@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
-import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -32,6 +32,34 @@ from text_vectorization import (
     load_text_vectorization_config,
     sha256_hex,
 )
+
+HELP_EPILOG = """Examples:
+  scripts/run_python.sh validate_hub.py --hub /path/to/hub
+  scripts/run_python.sh validate_hub.py /path/to/hub
+"""
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Validate a resource hub's config, indexes, and managed on-disk files.",
+        epilog=HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "hub_root",
+        nargs="?",
+        metavar="HUB_ROOT",
+        help="Path to the resource hub root. Kept for backward compatibility with older positional usage.",
+    )
+    parser.add_argument("--hub", dest="hub_option", metavar="HUB", help="Path to the resource hub root.")
+    args = parser.parse_args()
+    if args.hub_root and args.hub_option:
+        parser.error("provide the hub path either positionally or with --hub, not both")
+    hub_root = args.hub_option or args.hub_root
+    if not hub_root:
+        parser.error("a hub path is required; pass --hub <hub_root>")
+    args.hub_root = hub_root
+    return args
 
 
 def add_error(errors: list[str], message: str) -> None:
@@ -524,11 +552,8 @@ def validate_index(
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
-        print("Usage: python3 validate_hub.py <hub_root>", file=sys.stderr)
-        return 1
-
-    hub_root = Path(sys.argv[1]).resolve()
+    args = parse_args()
+    hub_root = Path(args.hub_root).resolve()
     errors: list[str] = []
     warnings: list[str] = []
     stats: dict[str, Any] = {

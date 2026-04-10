@@ -8,11 +8,23 @@ from pathlib import Path
 from common import HubError
 from hub_ops import repair_hub
 
+HELP_EPILOG = """Examples:
+  scripts/run_python.sh repair_hub.py --hub /path/to/hub
+"""
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Repair a resource hub so on-disk files and indexes match the current config.",
+        epilog=HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--hub", required=True, help="Path to the resource hub root to repair.")
+    return parser.parse_args()
+
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Repair a resource hub.")
-    parser.add_argument("--hub", required=True, help="Path to the resource hub root.")
-    args = parser.parse_args()
+    args = parse_args()
 
     try:
         payload = repair_hub(Path(args.hub).resolve())

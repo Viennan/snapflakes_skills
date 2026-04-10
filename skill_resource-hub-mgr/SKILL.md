@@ -22,9 +22,36 @@ Prefer the bundled scripts for repeatable work:
 - `scripts/run_python.sh add_resource.py --hub <hub_root> --source <asset> [--source <asset> ...] [--name <resource_name> ...]`
 - `scripts/run_python.sh remove_resource.py --hub <hub_root> --name <resource_name> [--name <resource_name> ...] [--type video|image ...]`
 - `scripts/run_python.sh repair_hub.py --hub <hub_root>`
-- `scripts/run_python.sh validate_hub.py <hub_root>`
+- `scripts/run_python.sh validate_hub.py --hub <hub_root>`
 - `scripts/run_python.sh find_resources.py --hub <hub_root> --query "..." [filters]`
 - `scripts/run_python.sh update_config.py --hub <hub_root> ...`
+
+## CLI Discovery
+
+- If exact flag names, repeated-argument shapes, quoting rules, or JSON value syntax are unclear, run `scripts/run_python.sh <script>.py --help` before executing the task.
+- This is especially important for `find_resources.py`, `update_config.py`, `add_resource.py`, `remove_resource.py`, and `validate_hub.py`.
+- `validate_hub.py` also accepts the legacy positional form `scripts/run_python.sh validate_hub.py <hub_root>`, but prefer `--hub <hub_root>` in new usage for consistency with the other helpers.
+
+## Command Examples
+
+- Validate a hub:
+  - `scripts/run_python.sh validate_hub.py --hub <hub_root>`
+- Find any matching asset by description:
+  - `scripts/run_python.sh find_resources.py --hub <hub_root> --query "blue loading animation"`
+- Find transparent video assets at or above 720p:
+  - `scripts/run_python.sh find_resources.py --hub <hub_root> --query "transparent spinner" --type video --require-alpha --min-resolution 720p`
+- Find still images at or above 1080p and cap the result list:
+  - `scripts/run_python.sh find_resources.py --hub <hub_root> --query "poster background" --type image --min-resolution 1080p --limit 5`
+- Read one config path:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --get description_language`
+- Set a JSON string value:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --set description_language '"en"'`
+- Set a JSON object value:
+  - `scripts/run_python.sh update_config.py --hub <hub_root> --set image.with_description '{"resolution":"720p"}'`
+- Import multiple resources with explicit names:
+  - `scripts/run_python.sh add_resource.py --hub <hub_root> --source /assets/a.png --name alpha --source /assets/b.mov --name beta`
+- Remove two image resources in one sequential batch:
+  - `scripts/run_python.sh remove_resource.py --hub <hub_root> --name alpha --name beta --type image`
 
 ## Operating rules
 
@@ -32,7 +59,7 @@ Prefer the bundled scripts for repeatable work:
 - Treat `index.json` as the single source of truth for each resource type.
 - Prefer the bundled scripts over hand-editing files.
 - Do not operate on the same hub concurrently. Batch imports should run sequentially in a single invocation, and separate tasks should not read or write the same hub at the same time.
-- After changing config or hub contents, run `validate_hub.py`.
+- After changing config or hub contents, run `scripts/run_python.sh validate_hub.py --hub <hub_root>`.
 - If validation or a config change implies the hub is out of sync, ask before running `repair_hub.py` unless the user already clearly authorized automatic repair.
 - When the user asks for assets by description, run `find_resources.py` first and inspect the top matches before recommending them.
 - If results are weak, say so clearly and suggest importing assets or improving descriptions instead of overstating confidence.

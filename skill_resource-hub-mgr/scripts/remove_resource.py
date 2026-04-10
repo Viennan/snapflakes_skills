@@ -9,9 +9,19 @@ from typing import Any
 from common import HubError
 from hub_ops import remove_resource
 
+HELP_EPILOG = """Examples:
+  scripts/run_python.sh remove_resource.py --hub /path/to/hub --name logo
+  scripts/run_python.sh remove_resource.py --hub /path/to/hub --name alpha --name beta --type image
+  scripts/run_python.sh remove_resource.py --hub /path/to/hub --name alpha --type image --name intro --type video
+"""
+
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Remove one or more resources from a resource hub.")
+    parser = argparse.ArgumentParser(
+        description="Remove one or more resources from a resource hub sequentially.",
+        epilog=HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--hub", required=True, help="Path to the resource hub root.")
     parser.add_argument(
         "--name",

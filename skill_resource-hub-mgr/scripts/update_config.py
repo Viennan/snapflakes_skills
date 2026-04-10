@@ -9,9 +9,21 @@ from typing import Any
 
 from common import config_path_from_hub, dump_json, load_json
 
+HELP_EPILOG = """Examples:
+  scripts/run_python.sh update_config.py --hub /path/to/hub --print
+  scripts/run_python.sh update_config.py --hub /path/to/hub --get description_language
+  scripts/run_python.sh update_config.py --hub /path/to/hub --set description_language '"en"'
+  scripts/run_python.sh update_config.py --hub /path/to/hub --set image.with_description '{"resolution":"720p"}'
+  scripts/run_python.sh update_config.py --hub /path/to/hub --delete text_vectorization
+"""
+
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Read or update resource_hub_config.json.")
+    parser = argparse.ArgumentParser(
+        description="Read or update resource_hub_config.json using dotted paths.",
+        epilog=HELP_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--hub", required=True, help="Path to the resource hub root.")
     parser.add_argument("--print", dest="print_config", action="store_true", help="Print the full config.")
     parser.add_argument("--get", action="append", default=[], metavar="PATH", help="Read a dotted path.")
@@ -21,7 +33,7 @@ def parse_args() -> argparse.Namespace:
         nargs=2,
         default=[],
         metavar=("PATH", "VALUE"),
-        help="Set a dotted path to a JSON value or raw string.",
+        help='Set a dotted path to a JSON value or raw string. Quote JSON strings like \'"en"\' when needed.',
     )
     parser.add_argument(
         "--delete",
